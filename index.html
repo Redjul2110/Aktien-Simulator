@@ -210,12 +210,14 @@
           <button class="buy" onclick="buy(${index})">Kaufen</button>
           <button class="sell" onclick="sell(${index})">Verkaufen</button>
         </div>`;
-      header.addEventListener("click", () => {
-        const isOpen = content.style.display === "block";
-        content.style.display = isOpen ? "none" : "block";
-        document.getElementById(`arrow-${index}`).textContent = isOpen ? "▼" : "▲";
+  header.addEventListener("click", () => {
+    // If a touch handler just toggled this card, ignore the synthetic click
+    if (window._lastTouchToggle && (Date.now() - window._lastTouchToggle) < 450) return;
+    const isOpen = content.style.display === "block";
+    content.style.display = isOpen ? "none" : "block";
+    document.getElementById(`arrow-${index}`).textContent = isOpen ? "▼" : "▲";
   if (!isOpen) drawChart(`chart-${index}`, stocks[index].history, stocks[index].color || "#00ff99", true, stocks[index].price);
-      });
+  });
       stockDiv.appendChild(header);
       stockDiv.appendChild(content);
       accordion.appendChild(stockDiv);
