@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Aktien-Simulator</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #0a1a33;
+      color: #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      padding: 15px;
+      background: #0d254d;
+      text-align: center;
+      font-size: 1.3em;
+      font-weight: bold;
+      color: #fff;
+    }
+    .balance {
+      padding: 10px;
+      background: #123366;
+      text-align: center;
+      font-size: 1.1em;
+    }
+    .balance .value.green { color: #00ff66; }
+    .balance .value.red   { color: #ff3333; }
+    .countdown { font-size: 0.95em; margin-left: 8px; color: #ffcc66; }
+
+    .accordion { flex: 1; overflow-y: auto; }
+    .stock { border-bottom: 1px solid #1f3b66; }
+    .stock-header {
+      padding: 10px;
+      background: #10294d;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.2s ease;
+    }
+    .stock-header:hover { background: #163666; }
+    .preview { display: flex; align-items: center; gap: 10px; }
+    .mini-chart {
+      width: 100px; height: 36px;
+      background: #0a1a33; border: 1px solid #1f3b66;
+    }
+    .price-text.green { color: #00ff66; }
+    .price-text.red   { color: #ff3333; }
+
+    .stock-content { display: none; padding: 10px; background: #0d254d; }
+    canvas {
+      width: 100%; height: 160px;
+      background: #0a1a33; border: 1px solid #1f3b66;
+    }
+
+    .controls { margin-top: 10px; display: flex; gap: 10px; }
+    button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease, color 0.22s ease;
+    }
+    button:hover {
+      transform: translateY(-1px) scale(1.06);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.35);
+    }
+    .buy { background: #006600; color: #fff; }
+    .buy:hover { background: #00cc66; color: #000; }
+    .sell { background: #660000; color: #fff; }
+    .sell:hover { background: #ff3333; color: #000; }
+
+    .extra-controls {
+      padding: 10px; background: #123366; text-align: center;
+      display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;
+    }
+    .extra-controls button { background: #1f3b66; color: #fff; }
+    .extra-controls button:hover { background: #3560a1; }
+
+    footer {
+      padding: 10px; background: #0d254d; text-align: center;
+      font-size: 0.8em; color: #ff5555;
+    }
+    .arrow { margin-left: 8px; opacity: 0.8; }
+
+    /* Overlay „Du landest auf der Straße“ */
+    #gameover {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.9);
+      color: #ff3333;
+      font-size: 2em;
+      display: none;
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      padding: 20px;
+    }
+    #gameover button {
+      margin-top: 20px;
+      background: #1f3b66;
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 6px;
+    }
+    #gameover button:hover {
+      background: #3560a1;
+      transform: translateY(-1px) scale(1.06);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.35);
+    }
+  </style>
+</head>
+<body>
+  <header>📈 Aktien-Simulator</header>
+
+  <div class="balance">
+    Dein Geld:
+    <span id="money" class="value">100</span> $
+    <span id="countdown" class="countdown"></span>
+  </div>
+
+  <div class="accordion" id="accordion"></div>
+
+  <div class="extra-controls">
+    <button onclick="resetGame()">🔄 Zurücksetzen</button>
+    <button onclick="toggleSpeed()" id="speedBtn">⏩ Geschwindigkeit: x1</button>
+    <button onclick="togglePause()" id="pauseBtn">⏸ Pause</button>
+  </div>
+
+  <footer>⚠️ Dies ist nur ein Simulator – keine echten Aktien!</footer>
+
+  <div id="gameover">
+    <div>💀 Du landest auf der Straße!</div>
+    <button onclick="resetGame(); hideGameOver();">Neustart</button>
+  </div>
+
+  <script>
+    // Startgeld jetzt 100 $
+    let money = 100;
+    const moneyEl = document.getElementById("money");
+    const countdownEl = document.getElementById("countdown");
+    const accordion = document.getElementById("accordion");
+    const gameoverEl = document.getElementById("gameover");
+
+    let speed = 1;
+    let tickInterval = 1500;
+    let timerId = null;
+    let paused = false;
+
+    let debtDeadline = null;
+    let debtTickerId = null;
+
+    const stocks = [
+      { name: "TechCorp",     price: 0, owned: 0, history: [0] },
+      { name: "AutoMax",      price: 0, owned: 0, history: [0] },
+      { name: "GreenEnergy",  price: 0, owned: 0, history: [0] },
+      { name: "Foodies",      price: 0, owned: 0, history: [0] }
+    ];
+
+    // UI
+    stocks.forEach((stock, index) => {
+      const stockDiv = document.createElement("div");
+      stockDiv.className = "stock";
+      const header = document.createElement("div");
+      header.className = "stock-header";
+      header.innerHTML = `
+        <div class="preview">
+          <strong>${stock.name}</strong>
+          <canvas id="mini-${index}" class="mini-chart"></canvas>
+        </div>
+        <div>
+          <span id="price-${index}" class="price-text">${formatPrice(stock.price)}</span>
+          <span class="arrow" id="arrow-${index}">▼</span>
+        </div>`;
+      const content = document.createElement("div");
+      content.className = "stock-content";
+      content.innerHTML = `
+        <p>Besitz: <span id="owned-${index}">0</span> Stück · Preis: <span id="price-large-${index}" class="price-text">${formatPrice(stock.price)}</span></p>
+        <canvas id="chart-${index}"></canvas>
+        <div class="controls">
+          <button class="buy" onclick="buy(${index})">Kaufen</button>
+          <button class="sell" onclick="sell(${index})">Verkaufen</button>
+        </div>`;
+      header.addEventListener("click", () => {
+        const isOpen = content.style.display === "block";
+        content.style.display = isOpen ? "none" : "block";
+        document.getElementById(`arrow-${index}`).textContent = isOpen ? "▼" : "▲";
+        if (!isOpen) drawChart(`chart-${index}`, stocks[index].history, "#00ff99", true, stocks[index].price);
+      });
+      stockDiv.appendChild(header);
+      stockDiv.appendChild(content);
+      accordion.appendChild(stockDiv);
+    });
+
+    // Formatierung + Farben
+    function formatPrice(p) {
+      const sign = p < 0 ? "-" : "";
+      return `${sign}${Math.abs(p).toFixed(2)} $`;
+    }
+    function setPriceColor(el, value) {
+      el.classList.remove("green","red");
+      el.classList.add(value >= 0 ? "green" : "red");
+    }
+    function updateMoneyColor() {
+      moneyEl.classList.remove("green","red");
+      moneyEl.classList.add(money >= 0 ? "green" : "red");
+    }
+
+    // Chart
+    function drawChart(canvasId, data, color="#00ff99", withAxis=false, lastPrice=null) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = Math.floor(rect.width);
+      canvas.height = Math.floor(rect.height);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const min = Math.min(...data);
+      const max = Math.max(...data);
+      const range = Math.max(1e-6, max - min);
+      const stepX = canvas.width / Math.max(1, data.length - 1);
+
+      if (withAxis) {
+        ctx.fillStyle = "#ccc";
+        ctx.font = "12px Arial";
+        ctx.textBaseline = "top";
+        ctx.fillText(`${max.toFixed(2)} $`, 6, 4);
+        ctx.textBaseline = "bottom";
+        ctx.fillText(`${min.toFixed(2)} $`, 6, canvas.height - 4);
+
+        if (min <= 100 && 100 <= max) {
+          const y100 = canvas.height - ((100 - min) / range) * canvas.height;
+          ctx.strokeStyle = "rgba(255,255,255,0.22)";
+          ctx.beginPath();
+          ctx.moveTo(0, y100);
+          ctx.lineTo(canvas.width, y100);
+          ctx.stroke();
+          ctx.fillStyle = "#ccc";
+          ctx.textBaseline = "middle";
+          ctx.fillText("100 $", 6, y100 - 2);
+        }
+      }
+
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      data.forEach((p, i) => {
+        const x = i * stepX;
+        const y = canvas.height - ((p - min) / range) * canvas.height;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      const last = data[data.length - 1];
+      const xLast = (data.length - 1) * stepX;
+      const yLast = canvas.height - ((last - min) / range) * canvas.height;
+      const label = formatPrice(lastPrice ?? last);
+
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(xLast, yLast, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      const padding = 4;
+      ctx.font = "12px Arial";
+      const textWidth = ctx.measureText(label).width;
+      const boxW = textWidth + padding * 2;
+      const boxH = 16;
+      const boxX = Math.min(canvas.width - boxW - 2, Math.max(2, xLast + 6));
+      const boxY = Math.min(canvas.height - boxH - 2, Math.max(2, yLast - boxH / 2));
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillRect(boxX, boxY, boxW, boxH);
+      ctx.fillStyle = (last >= 0) ? "#00ff66" : "#ff3333";
+      ctx.textBaseline = "top";
+      ctx.fillText(label, boxX + padding, boxY + 2);
+    }
+
+    // Mini-Charts initialisieren
+    function initMiniCharts() {
+      stocks.forEach((s, i) => {
+        drawChart(`mini-${i}`, s.history.slice(-10), "#00ff66", false);
+      });
+    }
+
+    // Kurs-Ticker: zackig, langsamer Rückweg ins Plus
+    function tick() {
+      if (paused) return;
+
+      stocks.forEach((stock, i) => {
+        let jump = Math.floor(Math.random() * 41) - 20; // -20..+20
+        if (stock.price < 0) {
+          jump += Math.floor(Math.random() * 4) + 2; // +2..+5 langsame Erholung
+        } else {
+          if (Math.random() < 0.15) jump += 2;
+        }
+
+        stock.price = stock.price + jump;
+
+        stock.history.push(stock.price);
+        if (stock.history.length > 120) stock.history.shift();
+
+        const headerPriceEl = document.getElementById(`price-${i}`);
+        const largePriceEl  = document.getElementById(`price-large-${i}`);
+        if (headerPriceEl) {
+          headerPriceEl.textContent = formatPrice(stock.price);
+          setPriceColor(headerPriceEl, stock.price);
+        }
+        if (largePriceEl) {
+          largePriceEl.textContent = formatPrice(stock.price);
+          setPriceColor(largePriceEl, stock.price);
+        }
+
+        drawChart(`mini-${i}`, stock.history.slice(-18), "#00ff66", false);
+
+        const content = document.querySelectorAll('.stock-content')[i];
+        if (content && content.style.display === "block") {
+          drawChart(`chart-${i}`, stock.history, "#00ff99", true, stock.price);
+        }
+      });
+
+      updateMoneyColor();
+
+      // Geld langsame Erholung (optional sehr leicht)
+      if (money < 0) {
+        money += Math.floor(Math.random() * 3) + 1; // +1..+3
+        moneyEl.textContent = money;
+        updateMoneyColor();
+      }
+
+      checkDebtTimer();
+    }
+
+    // Kaufen: immer absoluter Preis -> Geld wird abgezogen
+    function buy(i) {
+      const price = Math.abs(stocks[i].price);
+      if (money >= price) {
+        money -= price;
+        stocks[i].owned++;
+        moneyEl.textContent = money;
+        updateMoneyColor();
+        document.getElementById(`owned-${i}`).textContent = stocks[i].owned;
+        checkDebtTimer();
+      }
+    }
+
+    // Verkaufen: immer absoluter Preis -> Geld wird gutgeschrieben
+    function sell(i) {
+      if (stocks[i].owned > 0) {
+        const price = Math.abs(stocks[i].price);
+        stocks[i].owned--;
+        money += price;
+        moneyEl.textContent = money;
+        updateMoneyColor();
+        document.getElementById(`owned-${i}`).textContent = stocks[i].owned;
+        checkDebtTimer();
+      }
+    }
+
+    // Reset: Markt zurück auf 0, Geld wieder 100
+    function resetGame() {
+      money = 100;
+      moneyEl.textContent = money;
+      updateMoneyColor();
+      hideGameOver();
+      debtDeadline = null;
+      stopDebtCountdown();
+      countdownEl.textContent = "";
+
+      stocks.forEach((s, i) => {
+        s.price = 0;
+        s.owned = 0;
+        s.history = [0];
+        document.getElementById(`owned-${i}`).textContent = 0;
+
+        const headerPriceEl = document.getElementById(`price-${i}`);
+        const largePriceEl  = document.getElementById(`price-large-${i}`);
+        if (headerPriceEl) {
+          headerPriceEl.textContent = formatPrice(s.price);
+          setPriceColor(headerPriceEl, s.price);
+        }
+        if (largePriceEl) {
+          largePriceEl.textContent = formatPrice(s.price);
+          setPriceColor(largePriceEl, s.price);
+        }
+
+        drawChart(`mini-${i}`, s.history, "#00ff66", false);
+        drawChart(`chart-${i}`, s.history, "#00ff99", true, s.price);
+      });
+    }
+
+    // Geschwindigkeit toggeln
+    function toggleSpeed() {
+      speed = (speed === 1) ? 3 : 1;
+      document.getElementById("speedBtn").textContent = `⏩ Geschwindigkeit: x${speed}`;
+      restartTimer();
+    }
+
+    // Pause toggeln
+    function togglePause() {
+      paused = !paused;
+      document.getElementById("pauseBtn").textContent = paused ? "▶ Fortsetzen" : "⏸ Pause";
+    }
+
+    function restartTimer() {
+      if (timerId) clearInterval(timerId);
+      const interval = Math.max(150, Math.floor(tickInterval / speed));
+      timerId = setInterval(tick, interval);
+    }
+
+    // Minus-Geld Countdown (30s, „Du landest auf der Straße“)
+    function checkDebtTimer() {
+      if (money < 0 && !debtDeadline) {
+        debtDeadline = Date.now() + 30 * 1000; // 30 Sekunden
+        startDebtCountdown();
+      } else if (money >= 0 && debtDeadline) {
+        debtDeadline = null;
+        stopDebtCountdown();
+        countdownEl.textContent = "";
+        hideGameOver();
+      }
+    }
+    function startDebtCountdown() {
+      stopDebtCountdown();
+      updateCountdownText();
+      debtTickerId = setInterval(updateCountdownText, 1000);
+    }
+    function stopDebtCountdown() {
+      if (debtTickerId) clearInterval(debtTickerId);
+      debtTickerId = null;
+    }
+    function updateCountdownText() {
+      if (!debtDeadline) return;
+      const remaining = debtDeadline - Date.now();
+      if (remaining <= 0) {
+        showGameOver();
+        return;
+      }
+      const secs = Math.floor(remaining / 1000);
+      countdownEl.textContent = `(Reset in ${secs}s)`;
+    }
+
+    function showGameOver() {
+      gameoverEl.style.display = "flex";
+    }
+    function hideGameOver() {
+      gameoverEl.style.display = "none";
+    }
+
+    // Start
+    initMiniCharts();
+    updateMoneyColor();
+    restartTimer();
+  </script>
+</body>
+</html>
+```
