@@ -167,13 +167,19 @@
   const SHOCK_CHANCE_PER_TICK = 0.012; // ~1.2% chance per tick of a market shock
   const SHOCK_MAGNITUDE = 0.15; // shock moves price by up to +/-15%
 
-    // More realistic stock model: start price 100, track prevPrice, volatility
+    // helper: random start price between 5 and 10
+    function randomStartPrice() { return +(5 + Math.random() * 5).toFixed(2); }
+
+    // Stock model: start at a small random price so charts begin between 5 and 10
     const stocks = [
-      { name: "TechCorp",     price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.04, color: '#4da6ff' },
-      { name: "AutoMax",      price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.03, color: '#ffa64d' },
-      { name: "GreenEnergy",  price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.05, color: '#0ef08a' },
-      { name: "Foodies",      price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.02, color: '#ffd166' }
+      { name: "TechCorp",     price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.04, color: '#4da6ff' },
+      { name: "AutoMax",      price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.03, color: '#ffa64d' },
+      { name: "GreenEnergy",  price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.05, color: '#0ef08a' },
+      { name: "Foodies",      price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.02, color: '#ffd166' }
     ];
+
+    // initialize histories from prices
+    stocks.forEach(s => { s.prevPrice = s.price; s.history = [s.price]; });
 
     // UI
     stocks.forEach((stock, index) => {
@@ -246,74 +252,98 @@
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const min = Math.min(...data);
-  const max = Math.max(...data);
+      const min = Math.min(...data);
+      const max = Math.max(...data);
       const range = Math.max(1e-6, max - min);
       const stepX = canvas.width / Math.max(1, data.length - 1);
 
+      // gridlines for context (subtle)
       if (withAxis) {
-        ctx.fillStyle = "#ccc";
-        ctx.font = "12px Arial";
-        ctx.textBaseline = "top";
-        ctx.fillText(`${max.toFixed(2)} $`, 6, 4);
-        ctx.textBaseline = "bottom";
-        ctx.fillText(`${min.toFixed(2)} $`, 6, canvas.height - 4);
-
-        if (min <= 100 && 100 <= max) {
-          const y100 = canvas.height - ((100 - min) / range) * canvas.height;
-          ctx.strokeStyle = "rgba(255,255,255,0.22)";
+        ctx.save();
+        ctx.strokeStyle = 'rgba(200,200,200,0.06)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4,6]);
+        const gridLines = 4;
+        for (let g=0; g<=gridLines; g++){
+          const yy = (g/gridLines) * canvas.height;
           ctx.beginPath();
-          ctx.moveTo(0, y100);
-          ctx.lineTo(canvas.width, y100);
+          ctx.moveTo(0.5, yy + 0.5);
+          ctx.lineTo(canvas.width - 0.5, yy + 0.5);
           ctx.stroke();
-          ctx.fillStyle = "#ccc";
-          ctx.textBaseline = "middle";
-          ctx.fillText("100 $", 6, y100 - 2);
         }
+        ctx.restore();
       }
 
+      // draw main price line
       ctx.beginPath();
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
-      data.forEach((p, i) => {
+      ctx.lineJoin = 'round';
+      for (let i=0;i<data.length;i++){
+        const p = data[i];
         const x = i * stepX;
         const y = canvas.height - ((p - min) / range) * canvas.height;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      });
+        if (i===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
       ctx.stroke();
 
-  const last = data[data.length - 1];
+      // optional glow highlight
+      if (withGlow) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.shadowBlur = 18;
+        ctx.shadowColor = color;
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = color;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // last point marker + label
+      const last = data[data.length - 1];
       const xLast = (data.length - 1) * stepX;
       const yLast = canvas.height - ((last - min) / range) * canvas.height;
       const label = formatPrice(lastPrice ?? last);
 
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = '#fff';
       ctx.beginPath();
       ctx.arc(xLast, yLast, 3, 0, Math.PI * 2);
       ctx.fill();
 
-      const padding = 4;
-      ctx.font = "12px Arial";
-      const textWidth = ctx.measureText(label).width;
-      const boxW = textWidth + padding * 2;
-      const boxH = 16;
-      const boxX = Math.min(canvas.width - boxW - 2, Math.max(2, xLast + 6));
-      const boxY = Math.min(canvas.height - boxH - 2, Math.max(2, yLast - boxH / 2));
-      ctx.fillStyle = "rgba(0,0,0,0.6)";
-      ctx.fillRect(boxX, boxY, boxW, boxH);
-      ctx.fillStyle = (last >= 0) ? "#00ff66" : "#ff3333";
-      ctx.textBaseline = "top";
-      ctx.fillText(label, boxX + padding, boxY + 2);
+  ctx.font = '12px Arial';
+  const textWidth = ctx.measureText(label).width;
+  // draw label directly without background box to avoid gray stripe
+  const textX = Math.min(canvas.width - textWidth - 6, Math.max(6, xLast + 8));
+  const textY = Math.min(canvas.height - 14, Math.max(4, yLast - 9));
+  ctx.fillStyle = (last >= 0) ? '#00ff66' : '#ff3333';
+  ctx.textBaseline = 'top';
+  ctx.fillText(label, textX, textY);
 
-      // brief glow on parent to indicate which chart updated (only when requested)
-      try{
-        if(withGlow){
-          const parent = canvas.parentElement || canvas;
-          parent.style.transition = 'box-shadow .35s ease';
-          parent.style.boxShadow = `0 10px 30px ${color}55`;
-          setTimeout(()=> parent.style.boxShadow = '', 420);
+      // Additional overlays when withAxis=true: Fibonacci retracements and trendline
+      if (withAxis) {
+        // Fibonacci levels (0.786,0.618,0.5,0.382,0.236)
+        const fibs = [0.786, 0.618, 0.5, 0.382, 0.236];
+        ctx.save();
+        ctx.lineWidth = 1;
+        ctx.setLineDash([6,6]);
+        for (let i=0;i<fibs.length;i++){
+          const f = fibs[i];
+          const level = max - f * (max - min);
+          const y = canvas.height - ((level - min) / range) * canvas.height;
+          ctx.beginPath();
+          // neutral gray fib lines
+          ctx.strokeStyle = `rgba(200,200,200,${0.05 + i*0.02})`;
+          ctx.moveTo(0.5, y + 0.5);
+          ctx.lineTo(canvas.width - 0.5, y + 0.5);
+          ctx.stroke();
+          // tiny label
+          ctx.fillStyle = 'rgba(200,200,200,0.32)';
+          ctx.fillText(level.toFixed(2) + ' $', 6, Math.max(10, y - 6));
         }
-      }catch(e){}
+        ctx.restore();
+
+        // trendline removed by user request (no diagonal stripe)
+      }
     }
 
     // Mini-Charts initialisieren
@@ -448,9 +478,10 @@
       countdownEl.textContent = "";
 
       stocks.forEach((s, i) => {
-        s.price = 0;
-        s.owned = 0;
-        s.history = [0];
+  s.price = randomStartPrice();
+  s.prevPrice = s.price;
+  s.owned = 0;
+  s.history = [s.price];
         document.getElementById(`owned-${i}`).textContent = 0;
 
         const headerPriceEl = document.getElementById(`price-${i}`);
@@ -464,7 +495,7 @@
           setPriceColor(largePriceEl, s.price);
         }
 
-  drawChart(`mini-${i}`, s.history, s.color || "#00ff66", false);
+    drawChart(`mini-${i}`, s.history, s.color || "#00ff66", false, null, false);
   drawChart(`chart-${i}`, s.history, s.color || "#00ff99", true, s.price, false);
       });
     }
