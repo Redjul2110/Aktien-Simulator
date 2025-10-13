@@ -50,6 +50,10 @@
     .accordion{flex:1;overflow:auto;padding:12px 18px;display:flex;flex-direction:column;gap:8px}
   .stock{background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border-radius:8px;padding:8px;border:1px solid rgba(255,255,255,0.02);transition:transform .18s ease,box-shadow .18s ease}
   .stock.hovered{transform:translateY(-6px);box-shadow:0 14px 30px rgba(2,6,23,0.6);}
+    /* per-stock accent: left border and title dot */
+    .stock{--accent-color:var(--accent);border-left:6px solid transparent;padding-left:12px}
+    .stock[data-accent]{border-left-color:var(--accent-color)}
+    .chart-title::before{content:'';display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent-color);margin-right:8px;box-shadow:0 0 12px var(--accent-color)}
     .stock-header{display:grid;grid-template-columns: 1fr 120px 100px 140px;gap:12px;align-items:center;cursor:pointer}
     .stock-header .preview{display:flex;align-items:center;gap:10px}
     .stock-header strong{font-size:0.98rem}
@@ -61,6 +65,14 @@
 
     .stock-content{display:none;padding:10px;margin-top:8px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));border-radius:6px}
     canvas{width:100%;height:160px;border-radius:6px;background:transparent}
+
+  /* Chart header inside expanded card */
+  .chart-header{display:flex;align-items:center;justify-content:space-between;padding:6px 4px 10px 4px}
+  .chart-header .chart-title{font-weight:700;font-size:1.05rem}
+  .chart-header .chart-price{font-weight:700;font-size:1rem;color:var(--accent);display:flex;align-items:center;gap:8px}
+  .chart-header .chart-price .arrow{font-size:0.85rem;color:var(--muted)}
+  .chart-price.green{color:var(--accent)}
+  .chart-price.red{color:var(--danger)}
 
     /* Controls */
     .controls{display:flex;gap:8px;align-items:center}
@@ -157,10 +169,10 @@
 
     // More realistic stock model: start price 100, track prevPrice, volatility
     const stocks = [
-      { name: "TechCorp",     price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.04 },
-      { name: "AutoMax",      price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.03 },
-      { name: "GreenEnergy",  price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.05 },
-      { name: "Foodies",      price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.02 }
+      { name: "TechCorp",     price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.04, color: '#4da6ff' },
+      { name: "AutoMax",      price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.03, color: '#ffa64d' },
+      { name: "GreenEnergy",  price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.05, color: '#0ef08a' },
+      { name: "Foodies",      price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.02, color: '#ffd166' }
     ];
 
     // UI
@@ -181,9 +193,13 @@
       const content = document.createElement("div");
       content.className = "stock-content";
       content.innerHTML = `
-        <p>Besitz: <span id="owned-${index}">0</span> Stück · Preis: <span id="price-large-${index}" class="price-text">${formatPrice(stock.price)}</span></p>
+        <div class="chart-header">
+          <div class="chart-title">${stock.name}</div>
+          <div class="chart-price"><span id="price-large-${index}" class="price-text">${formatPrice(stock.price)}</span> <span class="arrow" id="arrow-large-${index}">▼</span></div>
+        </div>
+        <p style="margin:8px 4px 6px 4px">Besitz: <span id="owned-${index}">0</span> Stück · </p>
         <canvas id="chart-${index}"></canvas>
-        <div class="controls">
+        <div class="controls" style="margin-top:10px">
           Menge: <input id="qty-${index}" class="qty-input" type="number" min="1" value="1"> 
           <button class="buy" onclick="buy(${index})">Kaufen</button>
           <button class="sell" onclick="sell(${index})">Verkaufen</button>
@@ -192,11 +208,16 @@
         const isOpen = content.style.display === "block";
         content.style.display = isOpen ? "none" : "block";
         document.getElementById(`arrow-${index}`).textContent = isOpen ? "▼" : "▲";
-        if (!isOpen) drawChart(`chart-${index}`, stocks[index].history, "#00ff99", true, stocks[index].price);
+  if (!isOpen) drawChart(`chart-${index}`, stocks[index].history, stocks[index].color || "#00ff99", true, stocks[index].price);
       });
       stockDiv.appendChild(header);
       stockDiv.appendChild(content);
       accordion.appendChild(stockDiv);
+      // set accent color on the stock container so CSS can style borders/dots
+      (function(container, s){
+        container.style.setProperty('--accent-color', s.color || 'var(--accent)');
+        container.setAttribute('data-accent', '');
+      })(stockDiv, stock);
     });
 
     // Formatierung + Farben
@@ -214,7 +235,7 @@
     }
 
     // Chart
-  function drawChart(canvasId, data, color="#00ff99", withAxis=false, lastPrice=null) {
+  function drawChart(canvasId, data, color="#00ff99", withAxis=false, lastPrice=null, withGlow=false) {
       const canvas = document.getElementById(canvasId);
       if (!canvas) return;
       const ctx = canvas.getContext("2d");
@@ -283,12 +304,22 @@
       ctx.fillStyle = (last >= 0) ? "#00ff66" : "#ff3333";
       ctx.textBaseline = "top";
       ctx.fillText(label, boxX + padding, boxY + 2);
+
+      // brief glow on parent to indicate which chart updated (only when requested)
+      try{
+        if(withGlow){
+          const parent = canvas.parentElement || canvas;
+          parent.style.transition = 'box-shadow .35s ease';
+          parent.style.boxShadow = `0 10px 30px ${color}55`;
+          setTimeout(()=> parent.style.boxShadow = '', 420);
+        }
+      }catch(e){}
     }
 
     // Mini-Charts initialisieren
     function initMiniCharts() {
       stocks.forEach((s, i) => {
-        drawChart(`mini-${i}`, s.history.slice(-10), "#00ff66", false);
+  drawChart(`mini-${i}`, s.history.slice(-10), s.color || "#00ff66", false, null, false);
       });
     }
 
@@ -324,6 +355,7 @@
 
         const headerPriceEl = document.getElementById(`price-${i}`);
         const largePriceEl  = document.getElementById(`price-large-${i}`);
+        const largeArrowEl  = document.getElementById(`arrow-large-${i}`);
         if (headerPriceEl) {
           headerPriceEl.textContent = formatPrice(stock.price);
           // color by relative change
@@ -334,13 +366,23 @@
           largePriceEl.textContent = formatPrice(stock.price);
           const diff = stock.price - stock.prevPrice;
           setPriceColor(largePriceEl, diff);
+          if(largeArrowEl) largeArrowEl.textContent = diff >= 0 ? '▲' : '▼';
+          // chart-header price color
+          const chartPriceWrap = largePriceEl.closest('.chart-price');
+          if(chartPriceWrap){
+            chartPriceWrap.classList.toggle('green', diff >= 0);
+            chartPriceWrap.classList.toggle('red', diff < 0);
+          }
         }
 
-        drawChart(`mini-${i}`, stock.history.slice(-18), "#00ff66", false);
+  drawChart(`mini-${i}`, stock.history.slice(-18), stock.color || "#00ff66", false, null, false);
 
         const content = document.querySelectorAll('.stock-content')[i];
         if (content && content.style.display === "block") {
-          drawChart(`chart-${i}`, stock.history, "#00ff99", true, stock.price);
+          // only show glow on larger moves (>1%)
+          const prev = stock.history[stock.history.length-2] ?? stock.history[stock.history.length-1];
+          const pct = prev ? Math.abs((stock.price - prev) / Math.abs(prev)) : 0;
+          drawChart(`chart-${i}`, stock.history, stock.color || "#00ff99", true, stock.price, pct > 0.01);
         }
       });
 
@@ -422,8 +464,8 @@
           setPriceColor(largePriceEl, s.price);
         }
 
-        drawChart(`mini-${i}`, s.history, "#00ff66", false);
-        drawChart(`chart-${i}`, s.history, "#00ff99", true, s.price);
+  drawChart(`mini-${i}`, s.history, s.color || "#00ff66", false);
+  drawChart(`chart-${i}`, s.history, s.color || "#00ff99", true, s.price, false);
       });
     }
 
