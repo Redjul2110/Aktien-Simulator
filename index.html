@@ -5,136 +5,126 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Aktien-Simulator</title>
   <style>
+    :root{
+      --bg:#0b0b0d;
+      --panel:#0f1113;
+      --muted:#9096a0;
+      --accent:#0ef08a;
+      --danger:#ff4d4f;
+      --glass: rgba(255,255,255,0.03);
+    }
+    html,body{height:100%;}
     body {
       margin: 0;
-      font-family: Arial, sans-serif;
-      background-color: #0a1a33;
-      color: #e0e0e0;
-      display: flex; 
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      background: linear-gradient(180deg,var(--bg), #070708 110%);
+      color: #e6eef6;
+      display: flex;
       flex-direction: column;
       height: 100vh;
-    }
-    header {
-      padding: 15px;
-      background: #0d254d;
-      text-align: center;
-      font-size: 1.3em;
-      font-weight: bold;
-      color: #fff;
-    }
-    .balance {
-      padding: 10px;
-      background: #123366;
-      text-align: center;
-      font-size: 1.1em;
-    }
-    .balance .value.green { color: #00ff66; }
-    .balance .value.red   { color: #ff3333; }
-    .countdown { font-size: 0.95em; margin-left: 8px; color: #ffcc66; }
-
-    .accordion { flex: 1; overflow-y: auto; }
-    .stock { border-bottom: 1px solid #1f3b66; }
-    .stock-header {
-      padding: 10px;
-      background: #10294d;
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      transition: background 0.2s ease;
-    }
-    .stock-header:hover { background: #163666; }
-    .preview { display: flex; align-items: center; gap: 10px; }
-    .mini-chart {
-      width: 100px; height: 36px;
-      background: #0a1a33; border: 1px solid #1f3b66;
-    }
-    .price-text.green { color: #00ff66; }
-    .price-text.red   { color: #ff3333; }
-
-    .stock-content { display: none; padding: 10px; background: #0d254d; }
-    canvas {
-      width: 100%; height: 160px;
-      background: #0a1a33; border: 1px solid #1f3b66;
+      -webkit-font-smoothing:antialiased;
     }
 
-    .controls { margin-top: 10px; display: flex; gap: 10px; }
-    button {
-      padding: 10px 18px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease, color 0.22s ease;
+    /* Top bar */
+    header.topbar{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:12px 18px;background:linear-gradient(90deg,#071018 0%, #0b1115 100%);
+      border-bottom:1px solid rgba(255,255,255,0.03);
     }
-    button:hover {
-      transform: translateY(-1px) scale(1.06);
-      box-shadow: 0 8px 18px rgba(0,0,0,0.35);
-    }
-    .buy { background: #006600; color: #fff; }
-    .buy:hover { background: #00cc66; color: #000; }
-    .sell { background: #660000; color: #fff; }
-    .sell:hover { background: #ff3333; color: #000; }
+    header .title{font-weight:700;letter-spacing:0.4px}
+    header .market-time{color:var(--muted);font-size:0.9rem}
 
-    .extra-controls {
-      padding: 10px; background: #123366; text-align: center;
-      display: flex; justify-content: center; gap: 12px; flex-wrap: wrap;
+    .balance{
+      display:flex;align-items:center;gap:12px;padding:12px 18px;background:var(--panel);
+      border-bottom:1px solid rgba(255,255,255,0.03);
     }
-    .extra-controls button { background: #1f3b66; color: #fff; }
-    .extra-controls button:hover { background: #3560a1; }
+  .balance .label{color:var(--muted);font-size:0.95rem}
+  .balance .cash-row{display:flex;align-items:center;gap:12px}
+  .balance .currency{color:var(--muted)}
+  .balance .countdown-wrap{margin-left:auto}
+    .balance .value{font-weight:700;font-size:1.15rem;color:var(--accent)}
+    .balance .value.red{color:var(--danger)}
+    .countdown{color:var(--muted);font-size:0.9rem}
 
-    footer {
-      padding: 10px; background: #0d254d; text-align: center;
-      font-size: 0.8em; color: #ff5555;
-    }
-    .arrow { margin-left: 8px; opacity: 0.8; }
+    /* Main list */
+    .accordion{flex:1;overflow:auto;padding:12px 18px;display:flex;flex-direction:column;gap:8px}
+  .stock{background:linear-gradient(180deg, rgba(255,255,255,0.01), transparent);border-radius:8px;padding:8px;border:1px solid rgba(255,255,255,0.02);transition:transform .18s ease,box-shadow .18s ease}
+  .stock.hovered{transform:translateY(-6px);box-shadow:0 14px 30px rgba(2,6,23,0.6);}
+    .stock-header{display:grid;grid-template-columns: 1fr 120px 100px 140px;gap:12px;align-items:center;cursor:pointer}
+    .stock-header .preview{display:flex;align-items:center;gap:10px}
+    .stock-header strong{font-size:0.98rem}
+    .mini-chart{width:120px;height:36px;border-radius:4px;background:transparent;border:none}
+    .price-text{font-variant-numeric:tabular-nums}
+    .price-text.green{color:var(--accent)}
+    .price-text.red{color:var(--danger)}
+    .stock-header .change{color:var(--muted);font-size:0.9rem}
 
-    /* Overlay „Du landest auf der Straße“ */
-    #gameover {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.9);
-      color: #ff3333;
-      font-size: 2em;
-      display: none;
-      z-index: 999;
-      align-items: center;
-      justify-content: center;
-      flex-direction: column;
-      text-align: center;
-      padding: 20px;
+    .stock-content{display:none;padding:10px;margin-top:8px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));border-radius:6px}
+    canvas{width:100%;height:160px;border-radius:6px;background:transparent}
+
+    /* Controls */
+    .controls{display:flex;gap:8px;align-items:center}
+  input[type=number]{background:transparent;border:1px solid rgba(255,255,255,0.04);color:inherit;padding:8px;border-radius:6px}
+  .qty-input{width:72px;padding:6px;border-radius:6px;border:1px solid rgba(39,74,122,0.12);background:rgba(8,32,55,0.14);color:inherit}
+    button{background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit;padding:8px 12px;border-radius:6px;cursor:pointer}
+    button.buy{background:linear-gradient(90deg,#042f14,#083b1f);border:1px solid rgba(0,240,138,0.12);color:var(--accent)}
+    button.sell{background:linear-gradient(90deg,#3b0b0b,#2d0505);border:1px solid rgba(255,77,79,0.08);color:var(--danger)}
+
+    .extra-controls{padding:10px 18px;background:var(--panel);display:flex;gap:12px;align-items:center;border-top:1px solid rgba(255,255,255,0.02)}
+    .extra-controls button{background:transparent;border:1px solid rgba(255,255,255,0.03);padding:8px 10px;border-radius:6px}
+
+    footer{padding:12px 18px;background:transparent;color:var(--muted);font-size:0.85rem;text-align:center}
+
+    /* Gameover overlay */
+    #gameover{position:fixed;inset:0;background:linear-gradient(180deg, rgba(0,0,0,0.85), rgba(0,0,0,0.92));color:var(--danger);display:none;z-index:999;align-items:center;justify-content:center;flex-direction:column}
+    #gameover button{background:transparent;border:1px solid rgba(255,255,255,0.04);color:inherit;padding:10px 16px;border-radius:8px}
+    /* Responsive: mobile layout improvements */
+    @media (max-width: 720px){
+      .stock-header{grid-template-columns: 1fr 90px 80px;grid-auto-rows:auto}
+      .mini-chart{width:90px;height:30px}
+      .stock{padding:10px}
+      .controls{flex-direction:row;gap:6px}
+      .qty-input{width:60px}
+      header.topbar{padding:10px}
+      .balance{padding:10px}
+      .extra-controls{flex-wrap:wrap;gap:8px}
+      .stock.hovered{transform:none;box-shadow:none}
     }
-    #gameover button {
-      margin-top: 20px;
-      background: #1f3b66;
-      color: #fff;
-      padding: 10px 18px;
-      border-radius: 6px;
-    }
-    #gameover button:hover {
-      background: #3560a1;
-      transform: translateY(-1px) scale(1.06);
-      box-shadow: 0 8px 18px rgba(0,0,0,0.35);
+    /* Pointer media: only enable hover lift on devices with fine pointer */
+    @media (pointer: fine){
+      .stock:hover{transform:translateY(-6px);box-shadow:0 14px 30px rgba(2,6,23,0.6)}
+      button:hover{transform:translateY(-3px);box-shadow:0 10px 20px rgba(2,6,23,0.45)}
+      button.buy:hover{filter:brightness(1.06)}
+      button.sell:hover{filter:brightness(1.03)}
     }
   </style>
 </head>
 <body>
-  <header>📈 Aktien-Simulator</header>
+  <header class="topbar">
+    <div class="title">📈 Aktien-Simulator</div>
+    <div class="market-time">Simulationsmodus · Live</div>
+  </header>
 
-  <div class="balance">
-    Dein Geld:
-    <span id="money" class="value">100</span> $
-    <span id="countdown" class="countdown"></span>
+    <div class="balance">
+    <div class="cash-row">
+      <div class="label">Bargeld</div>
+      <div id="money" class="value">50</div>
+      <div class="currency"> $</div>
+    </div>
+    <div class="countdown-wrap"><div id="countdown" class="countdown"></div></div>
   </div>
 
   <div class="accordion" id="accordion"></div>
 
   <div class="extra-controls">
     <button onclick="resetGame()">🔄 Zurücksetzen</button>
-    <button onclick="toggleSpeed()" id="speedBtn">⏩ Geschwindigkeit: x1</button>
-    <button onclick="togglePause()" id="pauseBtn">⏸ Pause</button>
+    <button onclick="toggleSpeed()" id="speedBtn">⏩ x1</button>
+    <button onclick="togglePause()" id="pauseBtn">⏸</button>
+    <button onclick="saveGame()" id="saveBtn">💾 Speichern</button>
+    <button onclick="loadGame()" id="loadBtn">📂 Laden</button>
   </div>
 
-  <footer>⚠️ Dies ist nur ein Simulator – keine echten Aktien!</footer>
+  <footer>⚠️ Nur ein Simulator — keine Anlageberatung.</footer>
 
   <div id="gameover">
     <div>💀 Du landest auf der Straße!</div>
@@ -142,26 +132,35 @@
   </div>
 
   <script>
-    // Startgeld jetzt 100 $
-    let money = 100;
+  // Startgeld jetzt 50 $ (schwieriger)
+  let money = 50;
     const moneyEl = document.getElementById("money");
+    // initialize visible money
+    moneyEl.textContent = money;
     const countdownEl = document.getElementById("countdown");
     const accordion = document.getElementById("accordion");
     const gameoverEl = document.getElementById("gameover");
 
-    let speed = 1;
-    let tickInterval = 1500;
+  let speed = 1;
+  let tickInterval = 1500;
     let timerId = null;
     let paused = false;
 
-    let debtDeadline = null;
-    let debtTickerId = null;
+  let debtDeadline = null;
+  let debtTickerId = null;
+  // Difficulty parameters
+  const TRANSACTION_FEE_PCT = 0.005; // 0.5% fee per trade
+  const SLIPPAGE_BASE = 0.002; // base slippage per share fraction
+  const MARGIN_INTEREST_PCT_PER_TICK = 0.0015; // interest per tick on negative balance (~0.15%)
+  const SHOCK_CHANCE_PER_TICK = 0.012; // ~1.2% chance per tick of a market shock
+  const SHOCK_MAGNITUDE = 0.15; // shock moves price by up to +/-15%
 
+    // More realistic stock model: start price 100, track prevPrice, volatility
     const stocks = [
-      { name: "TechCorp",     price: 0, owned: 0, history: [0] },
-      { name: "AutoMax",      price: 0, owned: 0, history: [0] },
-      { name: "GreenEnergy",  price: 0, owned: 0, history: [0] },
-      { name: "Foodies",      price: 0, owned: 0, history: [0] }
+      { name: "TechCorp",     price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.04 },
+      { name: "AutoMax",      price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.03 },
+      { name: "GreenEnergy",  price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.05 },
+      { name: "Foodies",      price: 100, prevPrice: 100, owned: 0, history: [100], volatility: 0.02 }
     ];
 
     // UI
@@ -185,6 +184,7 @@
         <p>Besitz: <span id="owned-${index}">0</span> Stück · Preis: <span id="price-large-${index}" class="price-text">${formatPrice(stock.price)}</span></p>
         <canvas id="chart-${index}"></canvas>
         <div class="controls">
+          Menge: <input id="qty-${index}" class="qty-input" type="number" min="1" value="1"> 
           <button class="buy" onclick="buy(${index})">Kaufen</button>
           <button class="sell" onclick="sell(${index})">Verkaufen</button>
         </div>`;
@@ -214,7 +214,7 @@
     }
 
     // Chart
-    function drawChart(canvasId, data, color="#00ff99", withAxis=false, lastPrice=null) {
+  function drawChart(canvasId, data, color="#00ff99", withAxis=false, lastPrice=null) {
       const canvas = document.getElementById(canvasId);
       if (!canvas) return;
       const ctx = canvas.getContext("2d");
@@ -225,8 +225,8 @@
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const min = Math.min(...data);
-      const max = Math.max(...data);
+  const min = Math.min(...data);
+  const max = Math.max(...data);
       const range = Math.max(1e-6, max - min);
       const stepX = canvas.width / Math.max(1, data.length - 1);
 
@@ -261,7 +261,7 @@
       });
       ctx.stroke();
 
-      const last = data[data.length - 1];
+  const last = data[data.length - 1];
       const xLast = (data.length - 1) * stepX;
       const yLast = canvas.height - ((last - min) / range) * canvas.height;
       const label = formatPrice(lastPrice ?? last);
@@ -292,20 +292,33 @@
       });
     }
 
-    // Kurs-Ticker: zackig, langsamer Rückweg ins Plus
+    // Kurs-Ticker: Prozentuale Bewegungen mit normalverteilter Zufallsstreuung
+    function gaussianRandom() {
+      // Box-Muller
+      let u = 0, v = 0;
+      while(u === 0) u = Math.random();
+      while(v === 0) v = Math.random();
+      return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    }
+
     function tick() {
       if (paused) return;
 
       stocks.forEach((stock, i) => {
-        let jump = Math.floor(Math.random() * 41) - 20; // -20..+20
-        if (stock.price < 0) {
-          jump += Math.floor(Math.random() * 4) + 2; // +2..+5 langsame Erholung
-        } else {
-          if (Math.random() < 0.15) jump += 2;
+  stock.prevPrice = stock.price;
+        // drift small negative to avoid runaway inflation, volatility per stock
+        const drift = -0.001;
+        const vol = stock.volatility || 0.03;
+        const pct = drift + gaussianRandom() * vol; // e.g. -0.1..+0.1 typical
+
+        stock.price = Math.max(0.01, stock.price * (1 + pct));
+
+        // occasional market shock affecting all stocks
+        if (Math.random() < SHOCK_CHANCE_PER_TICK) {
+          const shockDir = (Math.random() < 0.5) ? -1 : 1;
+          const mag = Math.random() * SHOCK_MAGNITUDE;
+          stock.price = Math.max(0.01, stock.price * (1 + shockDir * mag));
         }
-
-        stock.price = stock.price + jump;
-
         stock.history.push(stock.price);
         if (stock.history.length > 120) stock.history.shift();
 
@@ -313,11 +326,14 @@
         const largePriceEl  = document.getElementById(`price-large-${i}`);
         if (headerPriceEl) {
           headerPriceEl.textContent = formatPrice(stock.price);
-          setPriceColor(headerPriceEl, stock.price);
+          // color by relative change
+          const diff = stock.price - stock.prevPrice;
+          setPriceColor(headerPriceEl, diff);
         }
         if (largePriceEl) {
           largePriceEl.textContent = formatPrice(stock.price);
-          setPriceColor(largePriceEl, stock.price);
+          const diff = stock.price - stock.prevPrice;
+          setPriceColor(largePriceEl, diff);
         }
 
         drawChart(`mini-${i}`, stock.history.slice(-18), "#00ff66", false);
@@ -330,9 +346,10 @@
 
       updateMoneyColor();
 
-      // Geld langsame Erholung (optional sehr leicht)
+      // Apply margin interest on negative balances
       if (money < 0) {
-        money += Math.floor(Math.random() * 3) + 1; // +1..+3
+        const interest = Math.ceil(Math.abs(money) * MARGIN_INTEREST_PCT_PER_TICK);
+        money -= interest; // increase debt
         moneyEl.textContent = money;
         updateMoneyColor();
       }
@@ -343,27 +360,39 @@
     // Kaufen: immer absoluter Preis -> Geld wird abgezogen
     function buy(i) {
       const price = Math.abs(stocks[i].price);
-      if (money >= price) {
-        money -= price;
-        stocks[i].owned++;
-        moneyEl.textContent = money;
-        updateMoneyColor();
-        document.getElementById(`owned-${i}`).textContent = stocks[i].owned;
-        checkDebtTimer();
-      }
+      const qtyEl = document.getElementById(`qty-${i}`);
+      const qty = Math.max(1, parseInt(qtyEl?.value || 1, 10));
+      // slippage depends on qty and volatility
+      const slippage = 1 + SLIPPAGE_BASE * qty * (stocks[i].volatility || 0.03) * 10;
+      const grossCost = price * qty * slippage;
+      const fee = grossCost * TRANSACTION_FEE_PCT;
+      const total = Math.round(grossCost + fee);
+      // Allow buying on margin
+      money -= total;
+      stocks[i].owned += qty;
+      moneyEl.textContent = money;
+      updateMoneyColor();
+      document.getElementById(`owned-${i}`).textContent = stocks[i].owned;
+      checkDebtTimer();
     }
 
     // Verkaufen: immer absoluter Preis -> Geld wird gutgeschrieben
     function sell(i) {
-      if (stocks[i].owned > 0) {
-        const price = Math.abs(stocks[i].price);
-        stocks[i].owned--;
-        money += price;
-        moneyEl.textContent = money;
-        updateMoneyColor();
-        document.getElementById(`owned-${i}`).textContent = stocks[i].owned;
-        checkDebtTimer();
-      }
+      const price = Math.abs(stocks[i].price);
+      const qtyEl = document.getElementById(`qty-${i}`);
+      const qty = Math.max(1, parseInt(qtyEl?.value || 1, 10));
+      const sellQty = Math.min(qty, stocks[i].owned);
+      if (sellQty <= 0) return;
+      const slippage = 1 - SLIPPAGE_BASE * sellQty * (stocks[i].volatility || 0.03) * 10;
+      const grossProceeds = price * sellQty * Math.max(0.5, slippage);
+      const fee = grossProceeds * TRANSACTION_FEE_PCT;
+      const total = Math.round(grossProceeds - fee);
+      stocks[i].owned -= sellQty;
+      money += total;
+      moneyEl.textContent = money;
+      updateMoneyColor();
+      document.getElementById(`owned-${i}`).textContent = stocks[i].owned;
+      checkDebtTimer();
     }
 
     // Reset: Markt zurück auf 0, Geld wieder 100
@@ -461,6 +490,73 @@
     updateMoneyColor();
     restartTimer();
   </script>
+  <script>
+    // Persistence (localStorage)
+    const SAVE_KEY = 'aktien_sim_save_v1';
+
+    function getGameState(){
+      return {
+        money,
+        stocks: stocks.map(s=>({name:s.name,price:s.price,owned:s.owned,history:s.history,volatility:s.volatility}))
+      };
+    }
+
+    function applyState(state){
+      if(!state) return;
+      money = state.money ?? money;
+      moneyEl.textContent = money;
+      state.stocks?.forEach((s,i)=>{
+        if(stocks[i]){
+          stocks[i].price = s.price ?? stocks[i].price;
+          stocks[i].owned = s.owned ?? stocks[i].owned;
+          stocks[i].history = s.history && s.history.length? s.history : stocks[i].history;
+          const ownedEl = document.getElementById(`owned-${i}`);
+          const priceEl = document.getElementById(`price-${i}`);
+          const largeEl = document.getElementById(`price-large-${i}`);
+          if(ownedEl) ownedEl.textContent = stocks[i].owned;
+          if(priceEl) { priceEl.textContent = formatPrice(stocks[i].price); setPriceColor(priceEl, stocks[i].price - stocks[i].prevPrice); }
+          if(largeEl) { largeEl.textContent = formatPrice(stocks[i].price); setPriceColor(largeEl, stocks[i].price - stocks[i].prevPrice); }
+        }
+      });
+      initMiniCharts();
+      toast('Spiel geladen');
+    }
+
+    function saveGame(){
+      try{
+        const state = getGameState();
+        localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+        toast('Spiel gespeichert');
+      }catch(e){
+        toast('Speichern fehlgeschlagen');
+        console.error(e);
+      }
+    }
+
+    function loadGame(){
+      try{
+        const raw = localStorage.getItem(SAVE_KEY);
+        if(!raw){ toast('Kein Save gefunden'); return; }
+        const state = JSON.parse(raw);
+        applyState(state);
+      }catch(e){ toast('Laden fehlgeschlagen'); console.error(e); }
+    }
+
+    function clearSave(){ localStorage.removeItem(SAVE_KEY); toast('Save gelöscht'); }
+
+    // auto-save every 30s
+    setInterval(()=>{ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(getGameState())); }catch(e){} }, 30000);
+
+    // small toast helper
+    function toast(msg, timeout=1800){
+      let t = document.getElementById('sim-toast');
+      if(!t){ t = document.createElement('div'); t.id = 'sim-toast'; t.style.position='fixed'; t.style.right='18px'; t.style.bottom='18px'; t.style.padding='10px 14px'; t.style.background='linear-gradient(90deg,#0b1113,#111214)'; t.style.border='1px solid rgba(255,255,255,0.04)'; t.style.borderRadius='8px'; t.style.color='var(--muted)'; t.style.zIndex='1100'; document.body.appendChild(t); }
+      t.textContent = msg;
+      t.style.opacity = '1';
+      setTimeout(()=>{ t.style.opacity='0'; }, timeout);
+    }
+  </script>
+  <script src="./style.js"></script>
 </body>
 </html>
 
