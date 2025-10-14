@@ -179,8 +179,8 @@
   </div>
 
   <script>
-  // Startgeld jetzt 22.50 $ (ausgeglichener)
-  let money = 22.50;
+  // Startgeld jetzt 50.00 $ (ausgeglichener)
+  let money = 50.00;
     const moneyEl = document.getElementById("money");
     // initialize visible money
     moneyEl.textContent = money.toFixed(2);
@@ -496,8 +496,8 @@
 
       updateMoneyColor();
 
-      // Apply margin interest on negative balances only when not paused
-      if (money < 0 && !paused) {
+      // Apply margin interest on negative balances only when not paused and no debt countdown is active
+      if (money < 0 && !paused && !debtDeadline) {
         // interest rounded to cents
         const interest = Math.ceil(Math.abs(money) * MARGIN_INTEREST_PCT_PER_TICK * 100) / 100;
         money -= interest; // increase debt
@@ -506,6 +506,36 @@
       }
 
       checkDebtTimer();
+    }
+
+    // Funktion zum Aktualisieren der Preis-UI für einen Stock
+    function updatePriceUI(i) {
+      const headerPriceEl = document.getElementById(`price-${i}`);
+      const largePriceEl = document.getElementById(`price-large-${i}`);
+      const largeArrowEl = document.getElementById(`arrow-large-${i}`);
+      if (headerPriceEl) {
+        headerPriceEl.textContent = formatPrice(stocks[i].price);
+        const diff = stocks[i].price - stocks[i].prevPrice;
+        setPriceColor(headerPriceEl, diff);
+      }
+      if (largePriceEl) {
+        largePriceEl.textContent = formatPrice(stocks[i].price);
+        const diff = stocks[i].price - stocks[i].prevPrice;
+        setPriceColor(largePriceEl, diff);
+        if (largeArrowEl) largeArrowEl.textContent = diff >= 0 ? '▲' : '▼';
+        const chartPriceWrap = largePriceEl.closest('.chart-price');
+        if (chartPriceWrap) {
+          chartPriceWrap.classList.toggle('green', diff >= 0);
+          chartPriceWrap.classList.toggle('red', diff < 0);
+        }
+      }
+      drawChart(`mini-${i}`, stocks[i].history.slice(-18), stocks[i].color || "#00ff66", false, null, false);
+      const content = document.querySelectorAll('.stock-content')[i];
+      if (content && content.style.display === "block") {
+        const prev = stocks[i].history[stocks[i].history.length - 2] ?? stocks[i].history[stocks[i].history.length - 1];
+        const pct = prev ? Math.abs((stocks[i].price - prev) / Math.abs(prev)) : 0;
+        drawChart(`chart-${i}`, stocks[i].history, stocks[i].color || "#00ff99", true, stocks[i].price, pct > 0.01);
+      }
     }
 
     // Kaufen: immer absoluter Preis -> Geld wird abgezogen
@@ -522,9 +552,15 @@
 
       money = Math.round((money - total) * 100) / 100;
       stocks[i].owned += qty;
-  // small upward price nudge on buy (positive sentiment) — 0.002 per share, capped at +5% per order
-  const nudge = Math.min(0.05, 0.002 * qty);
-  stocks[i].price = Math.round((stocks[i].price * (1 + nudge)) * 100) / 100;
+      // small upward price nudge on buy (positive sentiment) — fixed 1-3 $ increase, temporär für 3 Sekunden
+      const nudge = 1 + Math.random() * 2; // 1 to 3 $
+      const originalPrice = stocks[i].price;
+      stocks[i].price = Math.round((stocks[i].price + nudge) * 100) / 100;
+      // Nach 3 Sekunden Preis zurücksetzen
+      setTimeout(() => {
+        stocks[i].price = originalPrice;
+        updatePriceUI(i);
+      }, 3000);
       moneyEl.textContent = formatMoney(money);
       updateMoneyColor();
       document.getElementById(`owned-${i}`).textContent = stocks[i].owned;
