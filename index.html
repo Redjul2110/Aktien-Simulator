@@ -22,6 +22,8 @@
       display: flex;
       flex-direction: column;
       height: 100vh;
+      padding-top: 64px; /* leave space for fixed header */
+      padding-bottom: 64px; /* leave space for fixed footer */
       -webkit-font-smoothing:antialiased;
     }
 
@@ -30,7 +32,10 @@
       display:flex;align-items:center;justify-content:space-between;
       padding:12px 18px;background:linear-gradient(90deg,#071018 0%, #0b1115 100%);
       border-bottom:1px solid rgba(255,255,255,0.03);
+  position:fixed;left:0;right:0;top:0;z-index:1400;-webkit-backdrop-filter: blur(4px);backdrop-filter: blur(4px);
     }
+    
+    
     header .title{font-weight:700;letter-spacing:0.4px}
     header .market-time{color:var(--muted);font-size:0.9rem}
 
@@ -84,8 +89,19 @@
 
     .extra-controls{padding:10px 18px;background:var(--panel);display:flex;gap:12px;align-items:center;border-top:1px solid rgba(255,255,255,0.02)}
     .extra-controls button{background:transparent;border:1px solid rgba(255,255,255,0.03);padding:8px 10px;border-radius:6px}
+  .extra-controls #tax-status{margin-left:8px;color:var(--muted)}
+  .extra-controls #repayBtn{display:none}
+    .loan-input{width:84px;padding:6px;border-radius:6px;background:transparent;border:1px solid rgba(255,255,255,0.06);color:inherit;margin-right:6px}
+    .muted-label{color:var(--muted);margin-right:6px}
+    .section-header{display:flex;gap:12px;align-items:center;margin-bottom:8px}
+    .section-header h3{margin:0;color:var(--muted)}
+    .section-btn{padding:6px;border-radius:6px}
+    .section-wrap{padding:12px 18px}
+    .section-list{margin-bottom:18px}
 
-    footer{padding:12px 18px;background:transparent;color:var(--muted);font-size:0.85rem;text-align:center}
+  footer{padding:12px 18px;background:transparent;color:var(--muted);font-size:0.85rem;text-align:center;position:fixed;left:0;right:0;bottom:0;z-index:1400;-webkit-backdrop-filter: blur(4px);backdrop-filter: blur(4px)}
+    
+    
 
     /* Gameover overlay */
     #gameover{position:fixed;inset:0;background:linear-gradient(180deg, rgba(0,0,0,0.85), rgba(0,0,0,0.92));color:var(--danger);display:none;z-index:999;align-items:center;justify-content:center;flex-direction:column}
@@ -126,7 +142,20 @@
     <div class="countdown-wrap"><div id="countdown" class="countdown"></div></div>
   </div>
 
-  <div class="accordion" id="accordion"></div>
+  <div class="section-wrap">
+    <div class="section-header">
+      <h3>Aktien</h3>
+      <button class="section-btn" onclick="showOnly('stocks')">Nur Aktien</button>
+      <button class="section-btn" onclick="showOnly('all')">Alle</button>
+    </div>
+    <div id="stocks-list" class="accordion section-list"></div>
+
+    <div class="section-header">
+      <h3>Kryptowährungen</h3>
+      <button class="section-btn" onclick="showOnly('crypto')">Nur Crypto</button>
+    </div>
+    <div id="crypto-list" class="accordion"></div>
+  </div>
 
   <div class="extra-controls">
     <button onclick="resetGame()">🔄 Zurücksetzen</button>
@@ -134,6 +163,12 @@
     <button onclick="togglePause()" id="pauseBtn">⏸</button>
     <button onclick="saveGame()" id="saveBtn">💾 Speichern</button>
     <button onclick="loadGame()" id="loadBtn">📂 Laden</button>
+    <span id="tax-status"></span>
+    <label for="loan-amt" class="muted-label">Kredit:</label>
+    <input id="loan-amt" aria-label="Kreditbetrag" type="number" min="1" max="5000" value="200" class="loan-input">
+    <button onclick="takeLoan()" id="loanBtn">💸 Kredit aufnehmen</button>
+    <button onclick="repayLoan()" id="repayBtn">💰 Kredit zurückzahlen</button>
+    <button onclick="toggleMargin()" id="marginBtn">Margin: AN</button>
   </div>
 
   <footer>⚠️ Nur ein Simulator — keine Anlageberatung.</footer>
@@ -145,12 +180,13 @@
 
   <script>
   // Startgeld jetzt 50 $ (schwieriger)
-  let money = 50;
+  let money = 50.00;
     const moneyEl = document.getElementById("money");
     // initialize visible money
-    moneyEl.textContent = money;
+    moneyEl.textContent = money.toFixed(2);
     const countdownEl = document.getElementById("countdown");
-    const accordion = document.getElementById("accordion");
+  const stocksList = document.getElementById("stocks-list");
+  const cryptoList = document.getElementById("crypto-list");
     const gameoverEl = document.getElementById("gameover");
 
   let speed = 1;
@@ -160,12 +196,13 @@
 
   let debtDeadline = null;
   let debtTickerId = null;
+  let debtRemainingWhenPaused = null;
   // Difficulty parameters
   const TRANSACTION_FEE_PCT = 0.005; // 0.5% fee per trade
   const SLIPPAGE_BASE = 0.002; // base slippage per share fraction
   const MARGIN_INTEREST_PCT_PER_TICK = 0.0015; // interest per tick on negative balance (~0.15%)
-  const SHOCK_CHANCE_PER_TICK = 0.012; // ~1.2% chance per tick of a market shock
-  const SHOCK_MAGNITUDE = 0.15; // shock moves price by up to +/-15%
+  const SHOCK_CHANCE_PER_TICK = 0.04; // ~4% chance per tick of a market shock
+  const SHOCK_MAGNITUDE = 0.25; // shock moves price by up to +/-25%
 
     // helper: random start price between 5 and 10
     function randomStartPrice() { return +(5 + Math.random() * 5).toFixed(2); }
@@ -175,7 +212,10 @@
       { name: "TechCorp",     price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.04, color: '#4da6ff' },
       { name: "AutoMax",      price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.03, color: '#ffa64d' },
       { name: "GreenEnergy",  price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.05, color: '#0ef08a' },
-      { name: "Foodies",      price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.02, color: '#ffd166' }
+      { name: "Foodies",      price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.02, color: '#ffd166' },
+      // Crypto (fiktiv) — höhere Volatilität
+      { name: "BitFiction",   price: +(20 + Math.random()*30).toFixed(2), prevPrice: null, owned: 0, history: [], volatility: 0.12, color: '#f7931a', isCrypto: true },
+      { name: "MoonToken",    price: +(8 + Math.random()*12).toFixed(2), prevPrice: null, owned: 0, history: [], volatility: 0.18, color: '#8a2be2', isCrypto: true }
     ];
 
     // initialize histories from prices
@@ -209,6 +249,7 @@
           Menge: <input id="qty-${index}" class="qty-input" type="number" min="1" value="1"> 
           <button class="buy" onclick="buy(${index})">Kaufen</button>
           <button class="sell" onclick="sell(${index})">Verkaufen</button>
+          <button class="sell-all" onclick="sellAll(${index})">Alle verkaufen</button>
         </div>`;
   header.addEventListener("click", () => {
     // If a touch handler just toggled this card, ignore the synthetic click
@@ -218,9 +259,10 @@
     document.getElementById(`arrow-${index}`).textContent = isOpen ? "▼" : "▲";
   if (!isOpen) drawChart(`chart-${index}`, stocks[index].history, stocks[index].color || "#00ff99", true, stocks[index].price);
   });
-      stockDiv.appendChild(header);
-      stockDiv.appendChild(content);
-      accordion.appendChild(stockDiv);
+  stockDiv.appendChild(header);
+  stockDiv.appendChild(content);
+  // append to stocks or crypto section
+  if (stock.isCrypto) cryptoList.appendChild(stockDiv); else stocksList.appendChild(stockDiv);
       // set accent color on the stock container so CSS can style borders/dots
       (function(container, s){
         container.style.setProperty('--accent-color', s.color || 'var(--accent)');
@@ -232,6 +274,16 @@
     function formatPrice(p) {
       const sign = p < 0 ? "-" : "";
       return `${sign}${Math.abs(p).toFixed(2)} $`;
+    }
+    function showOnly(mode){
+      const s = document.getElementById('stocks-list');
+      const c = document.getElementById('crypto-list');
+      if(mode === 'stocks'){ s.style.display = ''; c.style.display = 'none'; }
+      else if(mode === 'crypto'){ s.style.display = 'none'; c.style.display = ''; }
+      else { s.style.display = ''; c.style.display = ''; }
+    }
+    function formatMoney(m){
+      return Number(m).toFixed(2);
     }
     function setPriceColor(el, value) {
       el.classList.remove("green","red");
@@ -254,8 +306,8 @@
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const min = Math.min(...data);
-      const max = Math.max(...data);
+  const min = Math.min(...data);
+  const max = Math.max(...data);
       const range = Math.max(1e-6, max - min);
       const stepX = canvas.width / Math.max(1, data.length - 1);
 
@@ -369,18 +421,20 @@
 
       stocks.forEach((stock, i) => {
   stock.prevPrice = stock.price;
-        // drift small negative to avoid runaway inflation, volatility per stock
-        const drift = -0.001;
+  // small positive drift to give more up-moves (configurable)
+  const drift = 0.0008;
         const vol = stock.volatility || 0.03;
         const pct = drift + gaussianRandom() * vol; // e.g. -0.1..+0.1 typical
 
-        stock.price = Math.max(0.01, stock.price * (1 + pct));
+    // apply percent movement and prevent prices from going negative
+  stock.price = stock.price * (1 + pct);
 
         // occasional market shock affecting all stocks
         if (Math.random() < SHOCK_CHANCE_PER_TICK) {
           const shockDir = (Math.random() < 0.5) ? -1 : 1;
           const mag = Math.random() * SHOCK_MAGNITUDE;
-          stock.price = Math.max(0.01, stock.price * (1 + shockDir * mag));
+          // shocks can push price negative too
+          stock.price = stock.price * (1 + shockDir * mag);
         }
         stock.history.push(stock.price);
         if (stock.history.length > 120) stock.history.shift();
@@ -420,11 +474,12 @@
 
       updateMoneyColor();
 
-      // Apply margin interest on negative balances
-      if (money < 0) {
-        const interest = Math.ceil(Math.abs(money) * MARGIN_INTEREST_PCT_PER_TICK);
+      // Apply margin interest on negative balances only when not paused
+      if (money < 0 && !paused) {
+        // interest rounded to cents
+        const interest = Math.ceil(Math.abs(money) * MARGIN_INTEREST_PCT_PER_TICK * 100) / 100;
         money -= interest; // increase debt
-        moneyEl.textContent = money;
+        moneyEl.textContent = formatMoney(money);
         updateMoneyColor();
       }
 
@@ -440,11 +495,19 @@
       const slippage = 1 + SLIPPAGE_BASE * qty * (stocks[i].volatility || 0.03) * 10;
       const grossCost = price * qty * slippage;
       const fee = grossCost * TRANSACTION_FEE_PCT;
-      const total = Math.round(grossCost + fee);
-      // Allow buying on margin
-      money -= total;
+      // round to cents
+      const total = Math.round((grossCost + fee) * 100) / 100;
+      // Prevent buying that would push money below 0 unless margin is enabled
+      if (!marginEnabled && (money - total < 0)) {
+        toast('Kauf abgebrochen: Nicht genug Geld (Margin deaktiviert)');
+        return;
+      }
+      money = Math.round((money - total) * 100) / 100;
       stocks[i].owned += qty;
-      moneyEl.textContent = money;
+  // small upward price nudge on buy (positive sentiment) — 0.002 per share, capped at +5% per order
+  const nudge = Math.min(0.05, 0.002 * qty);
+  stocks[i].price = Math.round((stocks[i].price * (1 + nudge)) * 100) / 100;
+      moneyEl.textContent = formatMoney(money);
       updateMoneyColor();
       document.getElementById(`owned-${i}`).textContent = stocks[i].owned;
       checkDebtTimer();
@@ -457,22 +520,45 @@
       const qty = Math.max(1, parseInt(qtyEl?.value || 1, 10));
       const sellQty = Math.min(qty, stocks[i].owned);
       if (sellQty <= 0) return;
-      const slippage = 1 - SLIPPAGE_BASE * sellQty * (stocks[i].volatility || 0.03) * 10;
+  let slippage = 1 - SLIPPAGE_BASE * sellQty * (stocks[i].volatility || 0.03) * 10;
+  // cap slippage to a reasonable range
+  if (slippage < 0.5) slippage = 0.5;
+  if (slippage > 1.5) slippage = 1.5;
       const grossProceeds = price * sellQty * Math.max(0.5, slippage);
       const fee = grossProceeds * TRANSACTION_FEE_PCT;
-      const total = Math.round(grossProceeds - fee);
+      // round to cents
+      const total = Math.round((grossProceeds - fee) * 100) / 100;
       stocks[i].owned -= sellQty;
-      money += total;
-      moneyEl.textContent = money;
+      money = Math.round((money + total) * 100) / 100;
+      moneyEl.textContent = formatMoney(money);
       updateMoneyColor();
       document.getElementById(`owned-${i}`).textContent = stocks[i].owned;
       checkDebtTimer();
     }
 
-    // Reset: Markt zurück auf 0, Geld wieder 100
+    // Sell entire holding for stock i
+    function sellAll(i) {
+      const price = Math.abs(stocks[i].price);
+      const sellQty = stocks[i].owned;
+      if (sellQty <= 0) return;
+  let slippage = 1 - SLIPPAGE_BASE * sellQty * (stocks[i].volatility || 0.03) * 10;
+  if (slippage < 0.5) slippage = 0.5;
+  if (slippage > 1.5) slippage = 1.5;
+  const grossProceeds = price * sellQty * slippage;
+      const fee = grossProceeds * TRANSACTION_FEE_PCT;
+      const total = Math.round((grossProceeds - fee) * 100) / 100;
+      stocks[i].owned = 0;
+      money = Math.round((money + total) * 100) / 100;
+      moneyEl.textContent = formatMoney(money);
+      updateMoneyColor();
+      document.getElementById(`owned-${i}`).textContent = stocks[i].owned;
+      checkDebtTimer();
+    }
+
+    // Reset: Markt zurück auf 0, Geld wieder 50
     function resetGame() {
-      money = 50;
-      moneyEl.textContent = money;
+      money = 50.00;
+      moneyEl.textContent = money.toFixed(2);
       updateMoneyColor();
       hideGameOver();
       debtDeadline = null;
@@ -513,6 +599,31 @@
     function togglePause() {
       paused = !paused;
       document.getElementById("pauseBtn").textContent = paused ? "▶ Fortsetzen" : "⏸ Pause";
+      if (paused) {
+        // freeze debt deadline
+        if (debtDeadline) {
+          debtRemainingWhenPaused = Math.max(0, debtDeadline - Date.now());
+          stopDebtCountdown();
+        }
+        // freeze loan deadline
+        if (loanDeadline) {
+          loanRemainingWhenPaused = Math.max(0, loanDeadline - Date.now());
+          stopLoanTicker();
+        }
+      } else {
+        // resume debt deadline
+        if (debtRemainingWhenPaused != null) {
+          debtDeadline = Date.now() + debtRemainingWhenPaused;
+          debtRemainingWhenPaused = null;
+          startDebtCountdown();
+        }
+        // resume loan deadline
+        if (typeof loanRemainingWhenPaused !== 'undefined' && loanRemainingWhenPaused != null) {
+          loanDeadline = Date.now() + loanRemainingWhenPaused;
+          loanRemainingWhenPaused = null;
+          startLoanTicker();
+        }
+      }
     }
 
     function restartTimer() {
@@ -546,6 +657,8 @@
       if (!debtDeadline) return;
       const remaining = debtDeadline - Date.now();
       if (remaining <= 0) {
+        // clear save on death
+        clearSave();
         showGameOver();
         return;
       }
@@ -554,6 +667,11 @@
     }
 
     function showGameOver() {
+      // ensure save cleared and timers stopped
+      clearSave();
+      stopDebtCountdown();
+      stopTaxTimer();
+      stopLoanTicker();
       gameoverEl.style.display = "flex";
     }
     function hideGameOver() {
@@ -564,6 +682,135 @@
     initMiniCharts();
     updateMoneyColor();
     restartTimer();
+  </script>
+  <script>
+    // Tax and Loan system
+    const TAX_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
+    const TAX_AMOUNT = 2.00; // flat tax for simplicity
+    let taxTimerId = null;
+    let missedTaxes = 0;
+
+    // Loan
+    let loanActive = false;
+    let loanAmount = 0;
+    let loanDeadline = null; // timestamp
+    let loanTickerId = null;
+  let loanRemainingWhenPaused = null;
+
+    function startTaxTimer(){
+      stopTaxTimer();
+      taxTimerId = setInterval(()=>{ if(!paused) chargeTax(); }, TAX_INTERVAL_MS);
+      updateTaxUI();
+    }
+    function stopTaxTimer(){ if(taxTimerId) clearInterval(taxTimerId); taxTimerId = null; }
+
+    function chargeTax(){
+      // attempt to charge; if can't pay, increment missed counter
+      if(money >= TAX_AMOUNT){
+        money = Math.round((money - TAX_AMOUNT) * 100) / 100;
+        moneyEl.textContent = formatMoney(money);
+        toast('Steuern bezahlt');
+        missedTaxes = 0;
+      } else {
+        missedTaxes++;
+        toast(`Steuern nicht bezahlt (${missedTaxes}/3)`);
+        if(missedTaxes >= 3){
+          clearSave();
+          showGameOver();
+        }
+      }
+      updateMoneyColor();
+      updateTaxUI();
+    }
+
+    function updateTaxUI(){
+      const el = document.getElementById('tax-status');
+      if(!el) return;
+      el.textContent = `Steuer: ${TAX_AMOUNT.toFixed(2)} $ · verpasst: ${missedTaxes}`;
+    }
+
+    // Loan & margin
+    let marginEnabled = true;
+    function toggleMargin(){
+      marginEnabled = !marginEnabled;
+      document.getElementById('marginBtn').textContent = 'Margin: ' + (marginEnabled ? 'AN' : 'AUS');
+      toast('Margin ' + (marginEnabled ? 'aktiviert' : 'deaktiviert'));
+    }
+
+    function takeLoan(){
+      if(loanActive){ toast('Du hast bereits einen Kredit'); return; }
+      const input = document.getElementById('loan-amt');
+      const amt = Math.max(1, Math.min(5000, parseFloat(input?.value || 200)));
+      loanActive = true;
+      loanAmount = Math.round(amt * 100) / 100;
+      money = Math.round((money + loanAmount) * 100) / 100;
+      moneyEl.textContent = formatMoney(money);
+      document.getElementById('loanBtn').style.display = 'none';
+      document.getElementById('repayBtn').style.display = 'inline-block';
+      // set 30 minutes deadline from now
+      loanDeadline = Date.now() + 30 * 60 * 1000;
+      startLoanTicker();
+      toast(`Kredit erhalten: +${loanAmount}`);
+    }
+
+    function repayLoan(){
+      if(!loanActive) return;
+      const required = Math.round((loanAmount + 200) * 100) / 100; // +200 fee
+      if(money >= required){
+        money = Math.round((money - required) * 100) / 100;
+        loanActive = false; loanAmount = 0;
+        // stop and clear deadline
+        stopLoanTicker();
+        loanDeadline = null;
+        // clear countdown UI
+        countdownEl.textContent = '';
+        document.getElementById('loanBtn').style.display = 'inline-block';
+        document.getElementById('repayBtn').style.display = 'none';
+        moneyEl.textContent = formatMoney(money);
+        updateMoneyColor();
+        toast(`Kredit zurückgezahlt (inkl. Gebühr 200 $)`);
+      } else {
+        toast(`Nicht genug Geld zum Zurückzahlen. Benötigt: ${required.toFixed(2)} $`);
+      }
+    }
+
+    function startLoanTicker(){
+      stopLoanTicker();
+      loanTickerId = setInterval(()=>{ if(!paused) updateLoanTick(); }, 1000);
+    }
+    function stopLoanTicker(){ if(loanTickerId) clearInterval(loanTickerId); loanTickerId = null; }
+
+    function updateLoanTick(){
+      if(!loanActive || !loanDeadline) return;
+      const rem = loanDeadline - Date.now();
+      if(rem <= 0){
+        // default: death if not repaid
+        clearSave();
+        showGameOver();
+        return;
+      }
+      // optionally show loan time somewhere (reuse countdownEl)
+      const mins = Math.floor(rem / 60000);
+      const secs = Math.floor((rem % 60000)/1000);
+      countdownEl.textContent = `Kredit fällig in ${mins}m ${secs}s`;
+    }
+
+    // Ensure pause also suspends death/tax/loan timers visually
+    const origTogglePause = togglePause;
+    function togglePause(){
+      paused = !paused;
+      document.getElementById("pauseBtn").textContent = paused ? "▶ Fortsetzen" : "⏸ Pause";
+      // when paused, stop applying interest and suspend loan/tax countdown effects visually
+      if(paused){
+        // no-op: timers already check paused flag
+      } else {
+        // resume loan ticker updates immediately to refresh UI
+        if(loanActive) updateLoanTick();
+      }
+    }
+
+    // start tax timer on load
+    startTaxTimer();
   </script>
   <script>
     // Persistence (localStorage)
