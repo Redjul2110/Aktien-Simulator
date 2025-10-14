@@ -131,21 +131,20 @@
 <body>
   <header class="topbar">
     <div class="title">📈 Aktien-Simulator</div>
+    <div class="balance">
+      <div class="cash-row">
+        <div class="label">Bargeld</div>
+        <div id="money" class="value">50</div>
+        <div class="currency"> $</div>
+      </div>
+      <div class="countdown-wrap"><div id="countdown" class="countdown"></div></div>
+      <div class="balance-controls">
+        <button onclick="toggleSpeed()" id="speedBtn">⏩ x1</button>
+        <button onclick="togglePause()" id="pauseBtn">⏸</button>
+      </div>
+    </div>
     <div class="market-time">Simulationsmodus · Live</div>
   </header>
-
-    <div class="balance">
-    <div class="cash-row">
-      <div class="label">Bargeld</div>
-      <div id="money" class="value">50</div>
-      <div class="currency"> $</div>
-    </div>
-    <div class="countdown-wrap"><div id="countdown" class="countdown"></div></div>
-    <div class="balance-controls">
-      <button onclick="toggleSpeed()" id="speedBtn">⏩ x1</button>
-      <button onclick="togglePause()" id="pauseBtn">⏸</button>
-    </div>
-  </div>
 
   <div class="section-wrap">
     <div class="section-header">
@@ -557,15 +556,16 @@
 
       money = Math.round((money - total) * 100) / 100;
       stocks[i].owned += qty;
-      // small upward price nudge on buy (positive sentiment) — fixed 1-3 $ increase, temporär für 3 Sekunden
-      const nudge = 1 + Math.random() * 2; // 1 to 3 $
+      // small downward price nudge on buy — small 1 $ decrease, temporär für 2 Sekunden
+      const nudge = 1; // 1 $
       const originalPrice = stocks[i].price;
-      stocks[i].price = Math.round((stocks[i].price + nudge) * 100) / 100;
-      // Nach 3 Sekunden Preis zurücksetzen
+      stocks[i].price = Math.round((stocks[i].price - nudge) * 100) / 100;
+      // Nach 2 Sekunden Preis zurücksetzen
       setTimeout(() => {
         stocks[i].price = originalPrice;
         updatePriceUI(i);
-      }, 3000);
+      }, 2000);
+
       moneyEl.textContent = formatMoney(money);
       updateMoneyColor();
       document.getElementById(`owned-${i}`).textContent = stocks[i].owned;
