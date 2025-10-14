@@ -111,7 +111,7 @@
       .stock-header{grid-template-columns: 1fr 90px 80px;grid-auto-rows:auto}
       .mini-chart{width:90px;height:30px}
       .stock{padding:10px}
-      .controls{flex-direction:row;gap:6px}
+      .controls{flex-direction:row;gap:6px;flex-wrap:wrap}
       .qty-input{width:60px}
       header.topbar{padding:10px}
       .balance{padding:10px}
@@ -230,8 +230,9 @@
 
     // Stock model: start at a small random price so charts begin between 15 and 25
     const stocks = [
-      { name: "TechCorp",     price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.08, color: '#4da6ff', drift: -0.005 },
+      { name: "RedJGames",     price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.08, color: '#4da6ff', drift: -0.005 },
       { name: "AutoMax",      price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.06, color: '#ffa64d', drift: -0.005 },
+      { name: "Keppy",        price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.06, color: '#ff4d4f', drift: -0.005 },
       { name: "GreenEnergy",  price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.10, color: '#0ef08a', drift: -0.005 },
       { name: "Foodies",      price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.05, color: '#ffd166', drift: -0.005 },
       // Crypto (fiktiv) — höhere Volatilität
