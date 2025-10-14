@@ -162,8 +162,6 @@
 
   <div class="extra-controls">
     <button onclick="resetGame()">🔄 Zurücksetzen</button>
-    <button onclick="toggleSpeed()" id="speedBtn">⏩ x1</button>
-    <button onclick="togglePause()" id="pauseBtn">⏸</button>
     <button onclick="saveGame()" id="saveBtn">💾 Speichern</button>
     <button onclick="loadGame()" id="loadBtn">📂 Laden</button>
     <span id="tax-status"></span>
@@ -228,16 +226,16 @@
       return Math.max(-200, Math.min(500, price));
     }
 
-    // Stock model: start at a small random price so charts begin between 15 and 25
+    // Stock model: start at a small random price so charts begin between 15 and 25, but at least 3 in negative and going up
     const stocks = [
-      { name: "RedJGames",     price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.08, color: '#4da6ff', drift: -0.005 },
-      { name: "AutoMax",      price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.06, color: '#ffa64d', drift: -0.005 },
-      { name: "Keppy",        price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.06, color: '#ff4d4f', drift: -0.005 },
-      { name: "GreenEnergy",  price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.10, color: '#0ef08a', drift: -0.005 },
-      { name: "Foodies",      price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.05, color: '#ffd166', drift: -0.005 },
+      { name: "RedJGames",     price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.08, color: '#4da6ff', drift: 0.01 },
+      { name: "AutoMax",      price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.06, color: '#ffa64d', drift: 0 },
+      { name: "Keppy",        price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.06, color: '#ff4d4f', drift: 0.01 },
+      { name: "GreenEnergy",  price: -randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.10, color: '#0ef08a', drift: 0.01 },
+      { name: "Foodies",      price: -randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.05, color: '#ffd166', drift: 0.01 },
       // Crypto (fiktiv) — höhere Volatilität
-      { name: "BitFiction",   price: +(20 + Math.random()*30).toFixed(2), prevPrice: null, owned: 0, history: [], volatility: 0.12, color: '#f7931a', isCrypto: true, drift: 0.0 },
-      { name: "MoonToken",    price: +(8 + Math.random()*12).toFixed(2), prevPrice: null, owned: 0, history: [], volatility: 0.18, color: '#8a2be2', isCrypto: true, drift: 0.0 }
+      { name: "BitFiction",   price: +(20 + Math.random()*30).toFixed(2), prevPrice: null, owned: 0, history: [], volatility: 0.12, color: '#f7931a', isCrypto: true, drift: 0 },
+      { name: "MoonToken",    price: +(8 + Math.random()*12).toFixed(2), prevPrice: null, owned: 0, history: [], volatility: 0.18, color: '#8a2be2', isCrypto: true, drift: 0.01 }
     ];
 
     // initialize histories from prices
@@ -448,8 +446,13 @@
         const vol = stock.volatility || 0.03;
         const pct = drift + gaussianRandom() * vol; // e.g. -0.1..+0.1 typical
 
-    // apply percent movement, adjusted to allow going negative from 0
+        // apply percent movement, adjusted to allow going negative from 0
   stock.price = (stock.price + 1) * (1 + pct) - 1;
+
+        // if price is negative, slowly move towards +2 without jumping
+        if (stock.price < 0) {
+          stock.price = Math.min(2, stock.price + 0.2);
+        }
 
         // occasional market shock affecting all stocks
         if (Math.random() < SHOCK_CHANCE_PER_TICK) {
@@ -668,6 +671,8 @@
           loanRemainingWhenPaused = Math.max(0, loanDeadline - Date.now());
           stopLoanTicker();
         }
+        // stop tax timer
+        stopTaxTimer();
       } else {
         // resume debt deadline
         if (debtRemainingWhenPaused != null) {
@@ -681,6 +686,8 @@
           loanRemainingWhenPaused = null;
           startLoanTicker();
         }
+        // start tax timer
+        startTaxTimer();
       }
     }
 
@@ -853,19 +860,7 @@
       countdownEl.textContent = `Kredit fällig in ${mins}m ${secs}s`;
     }
 
-    // Ensure pause also suspends death/tax/loan timers visually
-    const origTogglePause = togglePause;
-    function togglePause(){
-      paused = !paused;
-      document.getElementById("pauseBtn").textContent = paused ? "▶ Fortsetzen" : "⏸ Pause";
-      // when paused, stop applying interest and suspend loan/tax countdown effects visually
-      if(paused){
-        // no-op: timers already check paused flag
-      } else {
-        // resume loan ticker updates immediately to refresh UI
-        if(loanActive) updateLoanTick();
-      }
-    }
+
 
     // start tax timer on load
     startTaxTimer();
