@@ -178,8 +178,8 @@
   </div>
 
   <script>
-  // Startgeld jetzt 50.00 $ (ausgeglichener)
-  let money = 50.00;
+  // Startgeld jetzt 30.00 $ (schwieriger)
+  let money = 30.00;
     const moneyEl = document.getElementById("money");
     // initialize visible money
     moneyEl.textContent = money.toFixed(2);
@@ -187,9 +187,9 @@
     // Damping function for money changes near bounds
     function applyMoneyDamping(delta, currentMoney) {
       let factor = 1;
-      if (currentMoney > 30 && delta > 0) {
-        // reduce gains when above 30
-        factor = Math.max(0.1, 1 - (currentMoney - 30) / 5);
+      if (currentMoney > 20 && delta > 0) {
+        // reduce gains when above 20
+        factor = Math.max(0.1, 1 - (currentMoney - 20) / 5);
       } else if (currentMoney < -5 && delta < 0) {
         // reduce losses when below -5
         factor = Math.max(0.1, 1 - (-5 - currentMoney) / 5);
@@ -212,11 +212,11 @@
   let debtTickerId = null;
   let debtRemainingWhenPaused = null;
   // Difficulty parameters
-  const TRANSACTION_FEE_PCT = 0.005; // 0.5% fee per trade
-  const SLIPPAGE_BASE = 0.002; // base slippage per share fraction
-  const MARGIN_INTEREST_PCT_PER_TICK = 0.0015; // interest per tick on negative balance (~0.15%)
-  const SHOCK_CHANCE_PER_TICK = 0.04; // ~4% chance per tick of a market shock
-  const SHOCK_MAGNITUDE = 0.5; // shock moves price by up to +/-50%
+  const TRANSACTION_FEE_PCT = 0.01; // 1% fee per trade
+  const SLIPPAGE_BASE = 0.005; // base slippage per share fraction
+  const MARGIN_INTEREST_PCT_PER_TICK = 0.003; // interest per tick on negative balance (~0.3%)
+  const SHOCK_CHANCE_PER_TICK = 0.08; // ~8% chance per tick of a market shock
+  const SHOCK_MAGNITUDE = 0.8; // shock moves price by up to +/-80%
 
     // helper: random start price between 15 and 25
     function randomStartPrice() { return +(15 + Math.random() * 10).toFixed(2); }
@@ -228,14 +228,14 @@
 
     // Stock model: start at a small random price so charts begin between 15 and 25, but at least 3 in negative and going up
     const stocks = [
-      { name: "RedJGames",     price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.08, color: '#4da6ff', drift: 0.01 },
-      { name: "AutoMax",      price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.06, color: '#ffa64d', drift: 0 },
-      { name: "Keppy",        price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.06, color: '#ff4d4f', drift: 0.01 },
-      { name: "GreenEnergy",  price: -randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.10, color: '#0ef08a', drift: 0.01 },
-      { name: "Foodies",      price: -randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.05, color: '#ffd166', drift: 0.01 },
+      { name: "RedJGames",     price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.12, color: '#4da6ff', drift: 0.01 },
+      { name: "AutoMax",      price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.12, color: '#ffa64d', drift: 0 },
+      { name: "Keppy",        price: randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.12, color: '#ff4d4f', drift: 0.01 },
+      { name: "GreenEnergy",  price: -randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.12, color: '#0ef08a', drift: 0.01 },
+      { name: "Foodies",      price: -randomStartPrice(), prevPrice: null, owned: 0, history: [], volatility: 0.12, color: '#ffd166', drift: 0.01 },
       // Crypto (fiktiv) — höhere Volatilität
-      { name: "BitFiction",   price: +(20 + Math.random()*30).toFixed(2), prevPrice: null, owned: 0, history: [], volatility: 0.12, color: '#f7931a', isCrypto: true, drift: 0 },
-      { name: "MoonToken",    price: +(8 + Math.random()*12).toFixed(2), prevPrice: null, owned: 0, history: [], volatility: 0.18, color: '#8a2be2', isCrypto: true, drift: 0.01 }
+      { name: "BitFiction",   price: +(20 + Math.random()*30).toFixed(2), prevPrice: null, owned: 0, history: [], volatility: 0.25, color: '#f7931a', isCrypto: true, drift: 0 },
+      { name: "MoonToken",    price: +(8 + Math.random()*12).toFixed(2), prevPrice: null, owned: 0, history: [], volatility: 0.25, color: '#8a2be2', isCrypto: true, drift: 0.01 }
     ];
 
     // initialize histories from prices
@@ -615,9 +615,9 @@
       checkDebtTimer();
     }
 
-    // Reset: Markt zurück auf 0, Geld wieder 50
+    // Reset: Markt zurück auf 0, Geld wieder 30
     function resetGame() {
-      money = 50.00;
+      money = 30.00;
       moneyEl.textContent = money.toFixed(2);
       updateMoneyColor();
       hideGameOver();
@@ -700,7 +700,7 @@
     // Minus-Geld Countdown (30s, „Du landest auf der Straße“)
     function checkDebtTimer() {
       if (money < 0 && !debtDeadline) {
-        debtDeadline = Date.now() + 30 * 1000; // 30 Sekunden
+        debtDeadline = Date.now() + 20 * 1000; // 20 Sekunden
         startDebtCountdown();
       } else if (money >= 0 && debtDeadline) {
         debtDeadline = null;
@@ -750,8 +750,8 @@
   </script>
   <script>
     // Tax and Loan system
-    const TAX_INTERVAL_MS = 3 * 60 * 1000; // 3 minutes
-    const TAX_AMOUNT = 2.00; // flat tax for simplicity
+    const TAX_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+    const TAX_AMOUNT = 5.00; // flat tax for simplicity
     let taxTimerId = null;
     let missedTaxes = 0;
 
@@ -779,7 +779,7 @@
       } else {
         missedTaxes++;
         toast(`Steuern nicht bezahlt (${missedTaxes}/3)`);
-        if(missedTaxes >= 3){
+        if(missedTaxes >= 2){
           clearSave();
           showGameOver();
         }
@@ -813,14 +813,14 @@
       document.getElementById('loanBtn').style.display = 'none';
       document.getElementById('repayBtn').style.display = 'inline-block';
       // set 30 minutes deadline from now
-      loanDeadline = Date.now() + 30 * 60 * 1000;
+      loanDeadline = Date.now() + 20 * 60 * 1000;
       startLoanTicker();
       toast(`Kredit erhalten: +${loanAmount}`);
     }
 
     function repayLoan(){
       if(!loanActive) return;
-      const required = Math.round((loanAmount + 200) * 100) / 100; // +200 fee
+      const required = Math.round((loanAmount + 300) * 100) / 100; // +300 fee
       if(money >= required){
         money = Math.round((money - required) * 100) / 100;
         loanActive = false; loanAmount = 0;
@@ -833,7 +833,7 @@
         document.getElementById('repayBtn').style.display = 'none';
         moneyEl.textContent = formatMoney(money);
         updateMoneyColor();
-        toast(`Kredit zurückgezahlt (inkl. Gebühr 200 $)`);
+        toast(`Kredit zurückgezahlt (inkl. Gebühr 300 $)`);
       } else {
         toast(`Nicht genug Geld zum Zurückzahlen. Benötigt: ${required.toFixed(2)} $`);
       }
