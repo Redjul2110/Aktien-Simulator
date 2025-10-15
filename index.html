@@ -179,10 +179,11 @@
 
   <script>
   // Startgeld jetzt 30.00 $ (schwieriger)
-  let money = 30.00;
+  let money = 1000000.00;
     const moneyEl = document.getElementById("money");
     // initialize visible money
     moneyEl.textContent = money.toFixed(2);
+    let confettiShown = false;
 
     // Damping function for money changes near bounds
     function applyMoneyDamping(delta, currentMoney) {
@@ -312,6 +313,53 @@
     function updateMoneyColor() {
       moneyEl.classList.remove("green","red");
       moneyEl.classList.add(money >= 0 ? "green" : "red");
+      // Check for 1 million milestone
+      if (money >= 1000000 && !confettiShown) {
+        confettiShown = true;
+        showConfetti();
+      }
+    }
+
+    // Simple confetti animation
+    function showConfetti() {
+      const colors = ['#ff4d4f', '#0ef08a', '#ffa64d', '#4da6ff', '#ffd166', '#f7931a', '#8a2be2'];
+      const confettiCount = 100;
+      const container = document.body;
+
+      for (let i = 0; i < confettiCount; i++) {
+        const confetti = document.createElement('div');
+        confetti.style.position = 'fixed';
+        confetti.style.width = '10px';
+        confetti.style.height = '10px';
+        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        confetti.style.left = Math.random() * 100 + 'vw';
+        confetti.style.top = '-10px';
+        confetti.style.zIndex = '9999';
+        confetti.style.pointerEvents = 'none';
+        confetti.style.borderRadius = '50%';
+        container.appendChild(confetti);
+
+        // Animate falling
+        const duration = 2000 + Math.random() * 2000; // 2-4 seconds
+        const endX = Math.random() * 100 + 'vw';
+        const endY = '100vh';
+
+        confetti.animate([
+          { transform: 'translateY(0) rotate(0deg)', opacity: 1 },
+          { transform: `translateY(${window.innerHeight}px) rotate(${Math.random() * 360}deg)`, opacity: 0 }
+        ], {
+          duration: duration,
+          easing: 'ease-out',
+          fill: 'forwards'
+        });
+
+        // Remove after animation
+        setTimeout(() => {
+          if (confetti.parentNode) {
+            confetti.parentNode.removeChild(confetti);
+          }
+        }, duration);
+      }
     }
 
     // Chart
