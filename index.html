@@ -555,6 +555,12 @@
       // round to cents
       const total = Math.round((grossCost + fee) * 100) / 100;
 
+      // Check if margin is off and not enough money
+      if (!marginEnabled && money < total) {
+        toast(`Nicht genug Geld. Aktiviere Margin, um zu leihen.`);
+        return;
+      }
+
       money = Math.round((money - total) * 100) / 100;
       stocks[i].owned += qty;
       // small downward price nudge on buy — small 1 $ decrease, temporär für 2 Sekunden
@@ -615,7 +621,7 @@
       checkDebtTimer();
     }
 
-    // Reset: Markt zurück auf 0, Geld wieder 30
+    // Reset: Markt zurück auf 0, Geld wieder 30, und alles andere zurücksetzen
     function resetGame() {
       money = 30.00;
       moneyEl.textContent = money.toFixed(2);
@@ -624,6 +630,31 @@
       debtDeadline = null;
       stopDebtCountdown();
       countdownEl.textContent = "";
+
+      // Reset loan system
+      loanActive = false;
+      loanAmount = 0;
+      loanDeadline = null;
+      stopLoanTicker();
+      document.getElementById('loanBtn').style.display = 'inline-block';
+      document.getElementById('repayBtn').style.display = 'none';
+
+      // Reset tax system
+      missedTaxes = 0;
+      updateTaxUI();
+
+      // Reset margin
+      marginEnabled = true;
+      document.getElementById('marginBtn').textContent = 'Margin: AN';
+
+      // Reset pause and speed
+      paused = false;
+      document.getElementById("pauseBtn").textContent = "⏸ Pause";
+      speedIndex = 0;
+      speed = speeds[0];
+      document.getElementById("speedBtn").textContent = `⏩ x${speed}`;
+      restartTimer();
+      startTaxTimer();
 
       stocks.forEach((s, i) => {
   s.price = Math.random() < 0.05 ? -randomStartPrice() : randomStartPrice();
