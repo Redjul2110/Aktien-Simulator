@@ -223,7 +223,7 @@
 
     // clamp price to range -200 to 500
     function clampPrice(price) {
-      return Math.max(-200, Math.min(500, price));
+      return Math.max(-200, Math.min(1000000, price));
     }
 
     // Stock model: start at a small random price so charts begin between 15 and 25, but at least 3 in negative and going up
@@ -903,7 +903,15 @@
     function getGameState(){
       return {
         money,
-        stocks: stocks.map(s=>({name:s.name,price:s.price,owned:s.owned,history:s.history,volatility:s.volatility}))
+        stocks: stocks.map(s=>({name:s.name,price:s.price,owned:s.owned,history:s.history,volatility:s.volatility})),
+        missedTaxes,
+        debtRemaining: debtDeadline ? Math.max(0, debtDeadline - Date.now()) : null,
+        loanActive,
+        loanAmount,
+        loanRemaining: loanDeadline ? Math.max(0, loanDeadline - Date.now()) : null,
+        paused,
+        speedIndex,
+        marginEnabled
       };
     }
 
@@ -911,9 +919,11 @@
       if(!state) return;
       money = state.money ?? money;
       moneyEl.textContent = money;
+      updateMoneyColor();
       state.stocks?.forEach((s,i)=>{
         if(stocks[i]){
           stocks[i].price = s.price ?? stocks[i].price;
+          stocks[i].prevPrice = stocks[i].price;
           stocks[i].owned = s.owned ?? stocks[i].owned;
           stocks[i].history = s.history && s.history.length? s.history : stocks[i].history;
           const ownedEl = document.getElementById(`owned-${i}`);
@@ -924,6 +934,38 @@
           if(largeEl) { largeEl.textContent = formatPrice(stocks[i].price); setPriceColor(largeEl, stocks[i].price - stocks[i].prevPrice); }
         }
       });
+      // Restore timers and states
+      missedTaxes = state.missedTaxes ?? 0;
+      updateTaxUI();
+      if (state.debtRemaining) {
+        debtDeadline = Date.now() + state.debtRemaining;
+        startDebtCountdown();
+      } else {
+        debtDeadline = null;
+        stopDebtCountdown();
+        countdownEl.textContent = "";
+      }
+      loanActive = state.loanActive ?? false;
+      loanAmount = state.loanAmount ?? 0;
+      if (state.loanRemaining) {
+        loanDeadline = Date.now() + state.loanRemaining;
+        startLoanTicker();
+        document.getElementById('loanBtn').style.display = 'none';
+        document.getElementById('repayBtn').style.display = 'inline-block';
+      } else {
+        loanDeadline = null;
+        stopLoanTicker();
+        document.getElementById('loanBtn').style.display = 'inline-block';
+        document.getElementById('repayBtn').style.display = 'none';
+      }
+      paused = state.paused ?? false;
+      document.getElementById("pauseBtn").textContent = paused ? "▶ Fortsetzen" : "⏸ Pause";
+      speedIndex = state.speedIndex ?? 0;
+      speed = speeds[speedIndex];
+      document.getElementById("speedBtn").textContent = `⏩ x${speed}`;
+      restartTimer();
+      marginEnabled = state.marginEnabled ?? true;
+      document.getElementById('marginBtn').textContent = 'Margin: ' + (marginEnabled ? 'AN' : 'AUS');
       initMiniCharts();
       toast('Spiel geladen');
     }
